@@ -1,0 +1,187 @@
+```{r}
+library(PEcAn.all)
+```
+
+PEcAn Demonstration
+===================
+ESA Uncertainty Workshop
+---------
+
+author: David LeBauer
+
+date: Aug 10, 2014
+
+Overview
+========================================================
+
+For more details on authoring R presentations click the
+**Help** button on the toolbar.
+
+- Scientific Objectives
+- Workflow Components
+
+Scientific Objectives
+=====================
+
+More data than we can use.
+
+Uncertainty as critical as the mean projection.
+
+Example: Wang et al Poplar paper
+
+Workflow Components
+===================
+
+Settings File
+Database
+Modules
+
+... figure of workflow here ...
+
+
+Database + Data
+===============
+
+```{r}
+get.trait.data()
+```
+
+
+BETYdb user interface:
++ Priors
++ Data
++ Plant Functional Types
+ 
+Read a settings file
+======================
+
+```{r}
+library(PEcAn.all) ## loads all PEcAn libraries
+settings <- read.settings("pecan.xml")
+dbcon <- db.open(settings$database$bety)
+```
+
+
+Open a database connection
+==========================
+
+Parameters for the database. Can be set in `settings$database$bety`.
+```{r}
+#db.parms <- list(dbname = "bety", 
+#                 user = "bety", 
+#                 password = "bety", 
+#                 host = "localhost")
+#dbcon <- db.open(db.parms)
+dbcon <- db.open(settings$database$bety)
+```
+
+
+Prior Estimation step 1
+================
+
+Get all leaf respiration data for grasses other than Switchgrass:
+
+```{r}
+rd.query <- 
+  "select scientificname, GrowthHabit, mean, statname, stat 
+   from traits join species on traits.specie_id = species.id 
+       join variables on traits.variable_id = variables.id 
+       where variables.name = 'leaf_respiration_rate_m2' 
+   and scientificname not in ('Panicum virgatum') 
+   and GrowthHabit like '%graminoid%';"
+rd.result <- db.query(rd.query, con = dbcon)
+```
+
+Prior Estimation Step 2: Estimate Prior
+=======================================
+
+Fit distributions to the data:
+
+```{r}
+rd <- rd.result$mean
+dists <- c('gamma', 'lognormal','weibull')
+rd.prior <- fit.dist(rd, dists)
+
+hist(rd, breaks = sqrt(length(rd)), probability = TRUE)
+x <- seq(from = 0.01, to = 10, by = 0.01)
+lines(x, dlnorm(x, rd.prior$a, rd.prior$b))
+```
+
+Other Approaches:
+ * Heirarchical Meta-analysis
+ * fit to median, CI
+
+Prior Estimation Step 3: Add prior to the database
+==================================================
+
+1. Open web interface
+2. Click Data -> Priors -> New Prior
+3. Add data
+ * Citation: 51: Wullschleger 1993
+ * Phylogeny: grass
+ * distn (from above)
+ * parameter a, b, sample size = n
+
+
+
+Query Data
+==========
+
+```{r}
+get.trait.data()          # Query the trait database for data and priors
+```
+
+Meta-analysis
+=============
+
+
+```{r}
+run.meta.analysis()
+```
+ 
+
+Model`Linking
+=============
+
+Model Parameterization
+======================
+
+Fixed values + priors + meta-analysis posteriors
+
+Model Evaluation
+================
+
+- Sensitivity Analysis
+- Variance Decomposition
+- Ensemble Analysis
+- Data Assimilation (beta)
+
+Run Model
+=========
+
+
+```{r}
+run.write.configs(model)        # Calls model specific write.configs e.g. write.config.ed.R
+## load met data
+start.model.runs(model)         # Start ecosystem model runs
+convert.outputs(model = settings$model$name, settings = settings)
+```
+
+Sensitivity Analysis
+====================
+
+
+```{r}
+run.sensitivity.analysis()      # Run sensitivity analysis and variance decomposition on model output
+
+```
+
+Variance Decomposition
+======================
+
+Run ensemble analysis on model output. 
+
+```{r}
+#run.ensemble.analysis()          # 
+run.ensemble.analysis(plot.timeseries=TRUE)
+```
